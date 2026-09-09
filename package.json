@@ -1,0 +1,45 @@
+{
+  "name": "@isaiandco/ape-share-core",
+  "version": "1.0.0",
+  "description": "Autonomous modules for the Ape family of SIEM extensions",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ISAIandCO/ApeShareCore.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false,
+  "exports": {
+    "./ioc/providers": "./src/ioc/providers.js",
+    "./ioc/client": "./src/ioc/client.js",
+    "./ioc/normalize": "./src/ioc/normalize.js",
+    "./values/ip": "./src/values/ip.js",
+    "./values/hash": "./src/values/hash.js",
+    "./values/url": "./src/values/url.js",
+    "./ui/markdown": "./src/ui/markdown.js",
+    "./events/compare": "./src/events/compare.js",
+    "./ai/transport": "./src/ai/transport.js",
+    "./graph/force-layout": "./src/graph/force-layout.js",
+    "./graph/spatial-index": "./src/graph/spatial-index.js",
+    "./ioc/batch": "./src/ioc/batch.js",
+    "./ioc/ui": "./src/ioc/ui.js",
+    "./ai/chat": "./src/ai/chat.js",
+    "./investigation/model": "./src/investigation/model.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "CONTRACTS.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-boundaries.mjs",
+    "prepack": "npm run check && npm test"
+  }
+}
