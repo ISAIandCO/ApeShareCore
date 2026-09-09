@@ -1,0 +1,64 @@
+name: Consumer compatibility
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        repository: [KumApe, ApePatrol]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: core
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ISAIandCO/${{ matrix.repository }}
+          ref: main
+          path: consumer
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.22.2
+      - id: adoption
+        working-directory: consumer
+        run: |
+          if node -e "if (!require('./package.json').apeShareCore && !require('./package.json').dependencies?.['@isaiandco/ape-share-core']) process.exit(1)"; then
+            echo 'adopted=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'adopted=false' >> "$GITHUB_OUTPUT"
+            echo 'Bootstrap: consumer main has not adopted the package yet; compatibility starts after its integration PR is merged.'
+          fi
+      - if: steps.adoption.outputs.adopted == 'true'
+        working-directory: consumer
+        run: |
+          npm ci
+          echo "APE_CORE_SOURCE=$GITHUB_WORKSPACE/core" >> "$GITHUB_ENV"
+          if node -e "if (!require('./package.json').apeShareCore) process.exit(1)"; then
+            APE_CORE_SOURCE="$GITHUB_WORKSPACE/core" npm run core:prepare
+            echo "APE_CORE_SHA=$(node -p 'require("./.apesharecore.json").sha')" >> "$GITHUB_ENV"
+            echo 'APE_CORE_PREPARED=1' >> "$GITHUB_ENV"
+          else
+            npm install --ignore-scripts --no-save --install-links ../core
+          fi
+      - if: steps.adoption.outputs.adopted == 'true'
+        working-directory: consumer
+        run: npm run test:core && npm test
+      - if: steps.adoption.outputs.adopted == 'true' && matrix.repository == 'KumApe'
+        working-directory: consumer
+        run: |
+          GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REPOSITORY="ISAIandCO/KumApe" npm run package
+          npm run check:reproducible
+      - if: steps.adoption.outputs.adopted == 'true' && matrix.repository == 'ApePatrol'
+        working-directory: consumer
+        run: |
+          GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REPOSITORY="ISAIandCO/ApePatrol" npm run package:firefox
+          npm run check:reproducible
