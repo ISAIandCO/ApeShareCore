@@ -1,6 +1,6 @@
 {
   "name": "@isaiandco/ape-share-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous modules for the Ape family of SIEM extensions",
   "type": "module",
   "license": "Apache-2.0",

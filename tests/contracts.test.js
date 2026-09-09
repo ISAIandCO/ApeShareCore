@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { lookupIoc, IOC_API_PROVIDERS } from "../src/ioc/client.js";
 import { classifyIp } from "../src/values/ip.js";
-import { chatEndpoint, requestChatCompletion } from "../src/ai/transport.js";
+import { AI_RESPONSE_TIMEOUT_MS, chatEndpoint, requestChatCompletion } from "../src/ai/transport.js";
 import { compareEvents } from "../src/events/compare.js";
 
 const cases = [
@@ -55,6 +55,7 @@ test("local and mapped local addresses never reach an external provider", async 
 });
 
 test("AI transport preserves preview bytes, endpoint and optional key", async () => {
+  assert.equal(AI_RESPONSE_TIMEOUT_MS, 15 * 60_000);
   const serialized = '{"model":"test","messages":[]}';
   assert.equal(chatEndpoint("http://192.168.1.10:8000/v1", { expandBase: true }).pathname, "/v1/chat/completions");
   for (const apiKey of ["", " synthetic-key "]) {

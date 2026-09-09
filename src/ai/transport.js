@@ -1,5 +1,7 @@
 import { parseSafeExternalUrl } from "../values/url.js";
 
+export const AI_RESPONSE_TIMEOUT_MS = 15 * 60_000;
+
 // Product adapters own endpoint policy, permissions, secrets and payload confirmation.
 export function chatEndpoint(value, { expandBase = false } = {}) {
   const endpoint = parseSafeExternalUrl(String(value));
@@ -8,7 +10,7 @@ export function chatEndpoint(value, { expandBase = false } = {}) {
   return endpoint;
 }
 
-export async function requestChatCompletion(endpoint, serialized, { apiKey = "", timeoutMs = 120000, fetchImpl = fetch, signal } = {}) {
+export async function requestChatCompletion(endpoint, serialized, { apiKey = "", timeoutMs = AI_RESPONSE_TIMEOUT_MS, fetchImpl = fetch, signal } = {}) {
   const url = chatEndpoint(endpoint);
   const controller = new AbortController();
   const abort = () => controller.abort(signal.reason);

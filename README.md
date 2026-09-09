@@ -9,7 +9,7 @@
 | `ioc/client`, `ioc/providers`, `ioc/normalize` | API VirusTotal, AbuseIPDB, OpenTIP, ThreatFox; каталог и нормализация IOC |
 | `ioc/ui` | Переиспользуемые кнопки проверки IOC; принимает функции запроса и вывода результата |
 | `ioc/batch` | Формирование заданий, нормализация результатов, ключи и срок жизни кеша; без хранилища |
-| `ai/transport` | OpenAI-совместимый запрос: endpoint, payload, необязательный ключ, timeout и AbortSignal |
+| `ai/transport` | OpenAI-совместимый запрос: endpoint, payload, необязательный ключ, 15-минутный timeout по умолчанию и AbortSignal |
 | `ai/chat` | Модель диалога, вложений и запросов инструментов; без доступа к AI и без persistence |
 | `investigation/model` | Модель расследования, прикреплённые объекты, JSON/Markdown экспорт; без IndexedDB |
 | `events/compare` | Сравнение 2–3 событий с переданной функцией группировки полей |
