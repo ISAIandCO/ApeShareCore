@@ -45,7 +45,11 @@ jobs:
         run: npm run test:core && npm test
       - if: steps.adoption.outputs.adopted == 'true' && matrix.repository == 'KumApe'
         working-directory: consumer
-        run: npm run package && npm run check:reproducible
+        run: |
+          GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REPOSITORY="ISAIandCO/KumApe" npm run package
+          npm run check:reproducible
       - if: steps.adoption.outputs.adopted == 'true' && matrix.repository == 'ApePatrol'
         working-directory: consumer
-        run: npm run package:firefox && npm run check:reproducible
+        run: |
+          GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REPOSITORY="ISAIandCO/ApePatrol" npm run package:firefox
+          npm run check:reproducible

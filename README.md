@@ -24,7 +24,7 @@
 Установите пакет из Git с полным SHA выбранного проверенного коммита:
 
 ```sh
-npm install --save-exact '@isaiandco/ape-share-core@git+https://github.com/ISAIandCO/ApeShareCore.git#<40-character-commit-sha>'
+npm install --save-exact '@isaiandco/ape-share-core@https://codeload.github.com/ISAIandCO/ApeShareCore/tar.gz/<40-character-commit-sha>'
 ```
 
 ```js
