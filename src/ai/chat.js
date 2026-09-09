@@ -1,6 +1,7 @@
 import { normalizeWorkspaceItem } from "../investigation/model.js";
 
 export const AI_CHAT_MAX_BYTES = 2 * 1024 * 1024;
+export const AI_CONTEXT_MAX_BYTES = AI_CHAT_MAX_BYTES;
 const MAX_MESSAGES = 80;
 const MAX_ATTACHMENTS = 8;
 const MAX_TEXT = 100_000;
@@ -18,6 +19,26 @@ function normalizeToolCall(input) {
 
 export function normalizeAiAttachment(input) {
   return normalizeWorkspaceItem(input);
+}
+
+export function compactAiContextItems(input, identity = (item) => JSON.stringify(item)) {
+  if (!Array.isArray(input)) return [];
+  if (typeof identity !== "function") throw new TypeError("AI context identity must be a function");
+  const items = [];
+  const positions = new Map();
+  for (const item of input.filter((value) => value !== null && value !== undefined)) {
+    const key = String(identity(item));
+    const position = positions.get(key);
+    if (position === undefined) {
+      positions.set(key, items.length);
+      items.push(item);
+    } else items[position] = item;
+  }
+  return items;
+}
+
+function attachmentIdentity(attachment) {
+  return `${attachment.type}\u0000${attachment.value}`;
 }
 
 function normalizeAiAttachments(input) {
@@ -48,10 +69,35 @@ export function normalizeAiMessage(input, now = Date.now()) {
   };
 }
 
+function deduplicateMessageAttachments(messages) {
+  const lastOccurrence = new Map();
+  let occurrence = 0;
+  for (const message of messages) {
+    for (const attachment of message.attachments) lastOccurrence.set(attachmentIdentity(attachment), occurrence++);
+  }
+  occurrence = 0;
+  return messages.map((message) => ({
+    ...message,
+    attachments: message.attachments.filter((attachment) => {
+      const key = attachmentIdentity(attachment);
+      return lastOccurrence.get(key) === occurrence++;
+    }),
+  }));
+}
+
+export function compactAiConversation(input, now = Date.now()) {
+  const messages = (Array.isArray(input) ? input : []).map((message) => normalizeAiMessage(message, now)).filter(Boolean);
+  const attachments = compactAiContextItems(messages.flatMap((message) => message.attachments), attachmentIdentity);
+  return {
+    messages: messages.map((message) => ({ ...message, attachments: [] })),
+    attachments,
+  };
+}
+
 export function normalizeAiChat(input = {}, now = Date.now()) {
   if (!input || typeof input !== "object") input = {};
-  const messages = (Array.isArray(input.messages) ? input.messages : [])
-    .map((message) => normalizeAiMessage(message, now)).filter(Boolean).slice(-MAX_MESSAGES);
+  const messages = deduplicateMessageAttachments((Array.isArray(input.messages) ? input.messages : [])
+    .map((message) => normalizeAiMessage(message, now)).filter(Boolean).slice(-MAX_MESSAGES));
   const chat = {
     messages,
     draft: text(input.draft, 20_000),
@@ -98,4 +144,3 @@ export function mergeAiChats(target, source) {
   for (const message of normalizeAiChat(source).messages) merged = appendAiMessage(merged, message);
   return merged;
 }
-

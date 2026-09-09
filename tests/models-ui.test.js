@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createWorkspace, addWorkspaceItem, workspaceToJson } from "../src/investigation/model.js";
-import { normalizeAiChat, appendAiMessage, addAiAttachment } from "../src/ai/chat.js";
+import { normalizeAiChat, appendAiMessage, addAiAttachment, compactAiContextItems, compactAiConversation } from "../src/ai/chat.js";
 import { buildIocBatchJobs, normalizeIocBatchResult, readIocCache } from "../src/ioc/batch.js";
 import { iocActions, mountIocActions } from "../src/ioc/ui.js";
 
@@ -21,6 +21,26 @@ test("chat model preserves messages, drafts, attachments and tool requests", () 
   assert.deepEqual(input, before); assert.equal(chat.draft, "draft"); assert.equal(chat.messages.length, 2);
   assert.equal(chat.messages[0].attachments[0].snapshot.ID, "e"); assert.equal(chat.pendingToolCalls[0].id, "call");
   assert.equal(normalizeAiChat(chat).pendingAttachments.length, 1);
+});
+test("chat context is unique across messages without losing text history", () => {
+  const original = [
+    { role: "user", content: "first", attachments: [{ type: "event", value: "event-1", snapshot: { version: 1 } }] },
+    { role: "assistant", content: "answer" },
+    { role: "user", content: "second", attachments: [{ type: "event", value: "event-1", snapshot: { version: 2 } }] },
+  ];
+  const compacted = compactAiConversation(original, 1);
+  assert.deepEqual(original[0].attachments[0].snapshot, { version: 1 });
+  assert.deepEqual(compacted.messages.map((message) => message.content), ["first", "answer", "second"]);
+  assert.equal(compacted.messages.every((message) => message.attachments.length === 0), true);
+  assert.equal(compacted.attachments.length, 1);
+  assert.equal(compacted.attachments[0].snapshot.version, 2);
+  const normalized = normalizeAiChat({ messages: original }, 1);
+  assert.equal(normalized.messages.flatMap((message) => message.attachments).length, 1);
+  assert.equal(normalized.messages[2].attachments[0].snapshot.version, 2);
+});
+test("generic AI context compaction preserves first position and latest value", () => {
+  const items = compactAiContextItems([{ id: "one", value: 1 }, { id: "two", value: 2 }, { id: "one", value: 3 }], (item) => item.id);
+  assert.deepEqual(items, [{ id: "one", value: 3 }, { id: "two", value: 2 }]);
 });
 test("batch helpers work without a storage implementation", () => {
   const jobs = buildIocBatchJobs([{ type: "ip", value: "8.8.8.8" }], { example: { types: ["ip"] } }, ["example"]);
