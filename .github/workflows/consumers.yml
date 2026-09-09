@@ -31,7 +31,7 @@ jobs:
       - id: adoption
         working-directory: consumer
         run: |
-          if node -e "if (!require('./package.json').dependencies?.['@isaiandco/ape-share-core']) process.exit(1)"; then
+          if node -e "if (!require('./package.json').apeShareCore && !require('./package.json').dependencies?.['@isaiandco/ape-share-core']) process.exit(1)"; then
             echo 'adopted=true' >> "$GITHUB_OUTPUT"
           else
             echo 'adopted=false' >> "$GITHUB_OUTPUT"
@@ -39,7 +39,16 @@ jobs:
           fi
       - if: steps.adoption.outputs.adopted == 'true'
         working-directory: consumer
-        run: npm ci && npm install --ignore-scripts --no-save --install-links ../core
+        run: |
+          npm ci
+          echo "APE_CORE_SOURCE=$GITHUB_WORKSPACE/core" >> "$GITHUB_ENV"
+          if node -e "if (!require('./package.json').apeShareCore) process.exit(1)"; then
+            APE_CORE_SOURCE="$GITHUB_WORKSPACE/core" npm run core:prepare
+            echo "APE_CORE_SHA=$(node -p 'require("./.apesharecore.json").sha')" >> "$GITHUB_ENV"
+            echo 'APE_CORE_PREPARED=1' >> "$GITHUB_ENV"
+          else
+            npm install --ignore-scripts --no-save --install-links ../core
+          fi
       - if: steps.adoption.outputs.adopted == 'true'
         working-directory: consumer
         run: npm run test:core && npm test
