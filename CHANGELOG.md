@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Увеличено стандартное ожидание локального AI до 15 минут; значение экспортировано как `AI_RESPONSE_TIMEOUT_MS`.
+
 ## 1.0.0
 
 - Автономные модули IOC backend/UI/batch, AI transport/chat, investigation model, event comparison, graph, Markdown и values.
