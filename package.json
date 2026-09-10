@@ -1,6 +1,6 @@
 {
   "name": "@isaiandco/ape-share-core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Autonomous modules for the Ape family of SIEM extensions",
   "type": "module",
   "license": "Apache-2.0",
@@ -28,18 +28,49 @@
     "./ioc/ui": "./src/ioc/ui.js",
     "./ai/chat": "./src/ai/chat.js",
     "./investigation/model": "./src/investigation/model.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./ui/investigation-canvas": "./src/ui/investigation-canvas.js",
+    "./graph/filters": "./src/graph/filters.js",
+    "./styles/process-graph.css": "./styles/process-graph.css",
+    "./ui/process-graph": "./src/ui/process-graph.js",
+    "./graph/process-model": "./src/graph/process-model.js",
+    "./graph/progressive": "./src/graph/progressive.js",
+    "./graph/workflow": "./src/graph/workflow.js",
+    "./values/time": "./src/values/time.js",
+    "./events/describe": "./src/events/describe.js",
+    "./investigation/graph": "./src/investigation/graph.js",
+    "./ai/payload": "./src/ai/payload.js",
+    "./ui/chat-messages": "./src/ui/chat-messages.js",
+    "./ioc/report-links": "./src/ioc/report-links.js",
+    "./ioc/runner": "./src/ioc/runner.js",
+    "./settings/profiles": "./src/settings/profiles.js",
+    "./filters/templates": "./src/filters/templates.js",
+    "./ui/workspace": "./src/ui/workspace.js",
+    "./styles/workspace.css": "./styles/workspace.css",
+    "./templates/workspace.html": "./templates/workspace.html",
+    "./investigation/repository": "./src/investigation/repository.js",
+    "./ai/privacy": "./src/ai/privacy.js",
+    "./storage/records": "./src/storage/records.js",
+    "./ui/download": "./src/ui/download.js",
+    "./templates/process-graph.html": "./templates/process-graph.html",
+    "./graph/snapshots": "./src/graph/snapshots.js",
+    "./ai/conversation": "./src/ai/conversation.js"
   },
   "files": [
     "src/",
     "README.md",
     "CONTRACTS.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "styles/",
+    "templates/"
   ],
   "scripts": {
     "test": "node --test",
     "check": "node scripts/check-boundaries.mjs",
     "prepack": "npm run check && npm test"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.4"
   }
 }

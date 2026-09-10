@@ -1,4 +1,4 @@
-import { normalizeWorkspaceItem } from "../investigation/model.js";
+import { normalizeWorkspaceItem, sanitizeWorkspaceSnapshot } from "../investigation/model.js";
 
 export const AI_CHAT_MAX_BYTES = 2 * 1024 * 1024;
 export const AI_CONTEXT_MAX_BYTES = AI_CHAT_MAX_BYTES;
@@ -18,7 +18,10 @@ function normalizeToolCall(input) {
 }
 
 export function normalizeAiAttachment(input) {
-  return normalizeWorkspaceItem(input);
+  const item = normalizeWorkspaceItem({ ...input, snapshot: {} });
+  item.snapshot = sanitizeWorkspaceSnapshot(input.snapshot ?? {}, 0, AI_CONTEXT_MAX_BYTES);
+  if (new TextEncoder().encode(JSON.stringify(item)).byteLength > AI_CONTEXT_MAX_BYTES) throw new TypeError("AI attachment exceeds 2 MiB");
+  return item;
 }
 
 export function compactAiContextItems(input, identity = (item) => JSON.stringify(item)) {

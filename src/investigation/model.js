@@ -8,15 +8,15 @@ const SECRET_KEY = /(password|passwd|token|api.?key|authorization|cookie|secret|
 
 function cleanText(value, maximum = 500) { return String(value ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, maximum); }
 
-export function sanitizeWorkspaceSnapshot(value, depth = 0) {
+export function sanitizeWorkspaceSnapshot(value, depth = 0, maxText = 20_000) {
   if (depth > 8) return "[maximum depth]";
   if (value === null || ["boolean", "number"].includes(typeof value)) return value;
-  if (typeof value === "string") return value.slice(0, 20_000);
-  if (Array.isArray(value)) return value.slice(0, 500).map((item) => sanitizeWorkspaceSnapshot(item, depth + 1));
+  if (typeof value === "string") return value.slice(0, maxText);
+  if (Array.isArray(value)) return value.slice(0, 500).map((item) => sanitizeWorkspaceSnapshot(item, depth + 1, maxText));
   if (!value || typeof value !== "object") return String(value ?? "");
   return Object.fromEntries(Object.entries(value).slice(0, 1000)
     .filter(([key]) => !SECRET_KEY.test(key))
-    .map(([key, item]) => [cleanText(key, 200), sanitizeWorkspaceSnapshot(item, depth + 1)]));
+    .map(([key, item]) => [cleanText(key, 200), sanitizeWorkspaceSnapshot(item, depth + 1, maxText)]));
 }
 
 export function normalizeWorkspaceItem(input, now = Date.now()) {
@@ -41,6 +41,7 @@ export function createWorkspace(input = {}, now = Date.now(), uuid = crypto.rand
   return {
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     id: String(uuid),
+    status: input.status === "closed" ? "closed" : "open",
     title: cleanText(input.title || "Новое расследование", 160),
     createdAt: now,
     updatedAt: now,
