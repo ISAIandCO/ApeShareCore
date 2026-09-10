@@ -41,6 +41,7 @@ export function createWorkspace(input = {}, now = Date.now(), uuid = crypto.rand
   return {
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     id: String(uuid),
+    status: input.status === "closed" ? "closed" : "open",
     title: cleanText(input.title || "Новое расследование", 160),
     createdAt: now,
     updatedAt: now,

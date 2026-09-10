@@ -43,3 +43,34 @@ Markdown renderer меняет только переданный контейн�
 `ioc/batch` принимает задания, результаты и объект кеша; возвращает задания, нормализованные результаты, ключи и отфильтрованные копии. Сам модуль не делает запросов, не ждёт ретраев и не пишет в хранилище. Ключи существующего кеша ApePatrol сохранены. Планировщик, лимиты параллельности и persistence остаются адаптером.
 
 Модули `values/*` и `ioc/normalize` принимают значения и возвращают нормализованное значение, null или категорию. В них нет сетевых и файловых операций.
+
+## Общие процессы (1.2)
+
+`graph/process-model` принимает факты `{raw, recordId, host, time, identity, references, parentRefs}`. `time` — миллисекунды Unix; `identity` — `{id, kind, value}`, ссылки — `{kind: "guid" | "pid", value}`. Адаптер выбирает поля и нормализует регистр/формат идентификаторов. PID сопоставляется внутри хоста с ближайшим предшествующим временем жизни; GUID имеет приоритет. `raw` не изменяется. Узел содержит исходное `event`, нормализованные `fact` без повторной копии raw и `evidence` для событий, объединённых одним идентификатором процесса.
+
+`createProcessWorkflow({origin, normalize, searchPage}, settings)` возвращает `load(event, mode, signal)`, `expand(event, message, signal)` и `expandNode(event, message, signal)`. Общими являются пагинация, устранение повторов, сохранение исходного процесса, два прохода пошагового поиска, выбор связанных узлов, увеличение лимита и продолжение диапазонов. Настройки: `process.{maxNodes,maxDepth,pageSize,queryConcurrency,seedWindowSeconds,expansionStepSeconds}` и `searchScope.mode`.
+
+`searchPage` получает `{where, timeFrom, timeTo, offset, limit, signal}`. Диапазоны — **ISO UTC**, `offset` — число ранее прочитанных записей. `where` — намерение `{kind:"processes",host}` либо `{kind:"relations",events,direction}`. SQL/PDQL здесь отсутствуют. Адаптер переводит намерение в допустимый запрос SIEM и возвращает `{events, exhausted?, limitReached?}`. Для API без OFFSET адаптер может нарезать ограниченный ответ локально, но обязан отмечать серверный предел: окончание локального массива не доказывает полноту данных на сервере. При отмене адаптер передаёт signal транспортному запросу; поздние ответы не применяются.
+
+`graph/filters` работает с `node.filterValues` (`name,path,account,pid,host,eventType`) и исходным `node.event`. Фильтр текста/regex и обход родственников не знают названий SIEM-полей. Циклические входные графы не вызывают бесконечный обход.
+
+## Общие страницы и хранилища (1.2)
+
+`mountProcessGraph(root, adapter)` и `mountWorkspace(root, adapter)` создают контроллеры внутри переданного Document/Element. Импорт не требует DOM. Обработчики, observers и анимация снимаются через `destroy()`. `mountWorkspace` также возвращает `ready`, `state`, `refresh` и `selectWorkspace`; граф возвращает `state`, `reload`, `applyGraphResponse`. Это UI-модули с явными побочными эффектами только после монтирования.
+
+Адаптер графа предоставляет `buildView,isAvailable,load,expand,expandNode,cancel,open,pin,openWorkspace`. Необязательны `loadSnapshot,saveSnapshot,reconnect,subscribeUnavailable,loadForceSettings,saveForceSettings`; `subscribeUnavailable` возвращает функцию отписки. Ответ загрузки содержит `graph,sourceEvent,sourceNodeId,origin,queryMetadata`. Представление узла содержит подпись, детали карточки, время, размер и `filterValues`.
+
+Адаптер расследования предоставляет `request`, `buildInvestigationGraph`, `describeInvestigationEvent`, `eventTime`, `eventIdentity`, `eventItem`, `canSearch`, `canOpenEvent`, `openEvent`, `searchEntities`, `requestAiCompletion`, экспорт и download. `request` реализует операции `workspace:list/create/update/delete/item:add/item:remove/chat:get/chat:save`, `settings:get`, `ai:preview` и отклоняет Promise при ошибке. `searchEntities` возвращает `{events,query?}`. Монтирование загружает локальные расследования; поиск SIEM и отправка AI выполняются по действиям оператора. При переключении расследования поздний AI-ответ сохраняется в исходном диалоге.
+
+HTML/CSS страниц находятся в `templates/*` и `styles/*`. Сборщик подставляет только название продукта, относительные пути и entry script. Копии HTML в потребителях служат исходными оболочками; в артефакт всегда попадает шаблон установленного ядра.
+
+`createInvestigationRepository({databaseFactory,name,version?})` получает фабрику доступа к IndexedDB от приложения. Общая схема: stores `workspaces` и `aiChats`. Модель расследования расширена статусом `open|closed`, отсутствующий статус — `open`. Сохранение объектов выполняется в одной readwrite-транзакции с чтением, поэтому параллельные добавления из разных страниц не теряются. Миграция посторонних схем не выполняется. `createRecordStorage` аналогично предоставляет `get/set/remove/clear` для крупных локальных снимков. Сам импорт соединений не открывает.
+
+## Остальные общие блоки (1.2)
+
+- `events/describe` строит описание из семантических полей; `investigation/graph` объединяет события через нормализованные сущности. Списки SIEM-полей передаются адаптерами.
+- `ai/payload` формирует и ограничивает тело запроса, считает UTF-8 размер и SHA-256 для сверки с предпросмотром; `ai/privacy` выбирает поля, редактирует чувствительные значения и устраняет повторный контекст. Политика доступных хостов, credentials и названия полей остаются у потребителя.
+- `ui/chat-messages` — единый Markdown/attachments renderer. `ui/download` создаёт Blob URL и безопасное имя файла; получает функцию скачивания от приложения.
+- `ioc/report-links` — каталог и построение ссылок на существующие отчёты. `ioc/runner` — подтверждённые пакетные проверки, ограничение параллелизма, повторение временных ошибок, отмена и кеш; storage, permissions, secrets и настройки инъецируются.
+- `filters/templates` — поиск обязательных placeholders и подстановка. Проверка допустимых полей и экранирование литералов зависят от SQL/PDQL и передаются callback-функциями.
+- `settings/profiles` — чистое объединение управляемых настроек и импорт/экспорт профиля. Продукт задаёт defaults, normalize и идентификатор формата.
