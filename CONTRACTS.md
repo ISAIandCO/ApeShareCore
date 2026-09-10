@@ -82,3 +82,10 @@ HTML/CSS страниц находятся в `templates/*` и `styles/*`. Сб�
 `normalizeAiResponse` одинаково проверяет текст и разрешённые tool calls. Запрос инструмента — данные для подтверждения оператором, а не выполнение команды. Без `allowSiemTools` tool calls отбрасываются. AI-вложения сохраняют длинные текстовые поля в пределах собственного бюджета 2 MiB и не наследуют обрезку текста карточки расследования до 20 тысяч символов. Поля секретов удаляются при нормализации вложения; политика выбора остальных полей применяется перед предпросмотром.
 
 `createGraphSnapshots({storage,prefix,maxSnapshots,maxBytes,idPattern})` принимает интерфейс `get/set/remove`. По умолчанию сохраняет десять снимков, каждый до 64 MiB и 10 тысяч узлов. При восстановлении проверяет schemaVersion, ID, время создания, origin и размер графа. `context` — непрозрачные данные адаптера для последующего обращения к SIEM. Исходное событие и evidence сохраняются без изменения; обновление оставляет исходные ID и createdAt. Автоматической миграции посторонних схем нет.
+
+## `filters/platform` (1.3)
+
+`detectEventPlatform({ os, source, paths })` accepts arrays of evidence selected by the SIEM adapter and returns `windows`, `unix`, or `unknown`. Explicit OS evidence takes precedence over source-product names, which take precedence over absolute path syntax. Conflicting evidence at the same priority is unknown. Hostnames, arbitrary event text, and event IDs are not OS evidence.
+
+`normalizeFilterPlatforms(platforms)` normalizes optional `windows`/`unix` restrictions. An empty array means a universal filter. `filterSupportsPlatform(filter, platform)` permits universal filters and matching restricted filters; unknown systems do not enable restricted filters. Adapters preserve this metadata when saving custom filters and supply their own field aliases. Existing query rendering remains unchanged.
+
