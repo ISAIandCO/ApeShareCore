@@ -1,6 +1,7 @@
+import { createAiConversation } from "../ai/conversation.js";
 import { eventDiffToMarkdown, compareEvents } from "../events/compare.js";
 import { sanitizeFilenamePart } from "../values/url.js";
-import { addAiAttachment, appendAiMessage, normalizeAiChat } from "../ai/chat.js";
+import { addAiAttachment, normalizeAiChat } from "../ai/chat.js";
 import { renderChatMessages } from "./chat-messages.js";
 import { InvestigationCanvas } from "./investigation-canvas.js";
 import { parseSiemTime, rangeAroundEvents } from "../values/time.js";
@@ -16,8 +17,7 @@ const { request, buildInvestigationGraph, describeInvestigationEvent,
 const listeners = [];
 let destroyed = false;
 let revision = 0;
-let aiRevision = 0;
-const sending = new Set();
+
 function listen(target, type, handler) {
   target.addEventListener(type, handler);
   listeners.push(() => target.removeEventListener(type, handler));
@@ -33,6 +33,20 @@ const investigationForceControls = Object.freeze({
   repulsion: { input: "workspace-force-repulsion", output: "workspace-force-repulsion-value", digits: 2 },
   linkStrength: { input: "workspace-force-link-strength", output: "workspace-force-link-strength-value", digits: 2 },
   linkDistance: { input: "workspace-force-link-distance", output: "workspace-force-link-distance-value", digits: 0 },
+});
+
+const aiConversation = createAiConversation({
+  read: () => state.aiChat, write: chat => { state.aiChat = chat; renderAiWorkspace(); }, scope: () => state.selectedId,
+  request: () => ({ conversation: workspaceConversationWithDraft(), contextType: "workspace", selectedFields: state.settings.ai.selectedFields, allowSiemTools: state.aiChat.allowSiemTools }),
+  preview: message => request({ ...message, type: "ai:preview" }), complete: requestAiCompletion,
+  persist: (chat, id) => saveWorkspaceChat(id, chat),
+  changed() {
+    if (destroyed) return;
+    for (const node of document.querySelectorAll("#workspace-ai-context button, #workspace-ai-tool-requests button")) node.disabled = aiConversation.busy;
+    byId("workspace-ai-run").disabled = aiConversation.busy || !aiConversation.reviewed;
+    for (const id of ["workspace-ai-message", "workspace-ai-tools", "workspace-ai-clear", "workspace-ai-add-selected", "workspace-ai-add-notes"]) byId(id).disabled = aiConversation.busy;
+    byId("workspace-ai-preview").disabled = aiConversation.busy || !state.settings?.ai?.endpoint || !state.settings?.ai?.model;
+  },
 });
 
 function setStatus(message, error = false) {
@@ -238,7 +252,7 @@ function renderCompare(workspace) {
 }
 
 function invalidateAiPreview() {
-  aiRevision += 1;
+  aiConversation.invalidate();
   state.aiPreviewHash = null;
   byId("workspace-ai-run").disabled = true;
   byId("workspace-ai-preview-output").textContent = "";
@@ -256,7 +270,7 @@ async function loadWorkspaceChat() {
 
 async function saveWorkspaceChat(workspaceId = state.selectedId, chat = state.aiChat) {
   if (!workspaceId) return;
-  clearTimeout(aiSaveTimer);
+  if (workspaceId === state.selectedId) clearTimeout(aiSaveTimer);
   await request({ type: "workspace:chat:save", id: workspaceId, chat });
 }
 
@@ -286,6 +300,7 @@ function renderWorkspaceToolRequests() {
   const list = document.createElement("ul");
   for (const call of state.aiChat.pendingToolCalls) { const item = document.createElement("li"); item.textContent = workspaceToolDescription(call); list.append(item); }
   const run = document.createElement("button"); run.type = "button"; run.textContent = "Подтвердить добавление объектов";
+  run.disabled = aiConversation.busy;
   run.addEventListener("click", () => executeWorkspaceToolCalls().catch((error) => setStatus(error.message, true)));
   panel.append(list, run);
 }
@@ -301,15 +316,16 @@ function renderAiWorkspace() {
   state.aiChat.pendingAttachments.forEach((attachment, index) => {
     const chip = document.createElement("span"); chip.textContent = `${attachment.type}: ${attachment.label}`;
     const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×";
-    remove.addEventListener("click", () => { state.aiChat.pendingAttachments.splice(index, 1); invalidateAiPreview(); renderAiWorkspace(); scheduleWorkspaceChatSave(); });
+    remove.disabled = aiConversation.busy;
+    remove.addEventListener("click", () => { if (aiConversation.busy) return; state.aiChat.pendingAttachments.splice(index, 1); invalidateAiPreview(); renderAiWorkspace(); scheduleWorkspaceChatSave(); });
     chip.append(remove); pending.append(chip);
   });
   byId("workspace-ai-message").value = state.aiChat.draft;
   byId("workspace-ai-tools").checked = state.aiChat.allowSiemTools;
   byId("workspace-ai-preview").disabled = !state.settings?.ai?.endpoint || !state.settings?.ai?.model;
   renderWorkspaceToolRequests();
-  for (const id of ["workspace-ai-message", "workspace-ai-tools", "workspace-ai-clear", "workspace-ai-add-selected", "workspace-ai-add-notes"]) byId(id).disabled = sending.has(workspace.id);
-  if (sending.has(workspace.id)) byId("workspace-ai-preview").disabled = true;
+  for (const id of ["workspace-ai-message", "workspace-ai-tools", "workspace-ai-clear", "workspace-ai-add-selected", "workspace-ai-add-notes"]) byId(id).disabled = aiConversation.busy;
+  if (aiConversation.busy) byId("workspace-ai-preview").disabled = true;
 }
 
 function addSelectedWorkspaceItems() {
@@ -329,6 +345,7 @@ function addWorkspaceNotes() {
 }
 
 async function executeWorkspaceToolCalls() {
+  if (aiConversation.busy) return;
   const workspace = selectedWorkspace();
   const calls = [...state.aiChat.pendingToolCalls];
   if (!calls.length || !confirm(`Добавить в следующее сообщение данные для ${calls.length} показанных запросов AI?`)) return;
@@ -346,15 +363,9 @@ async function executeWorkspaceToolCalls() {
 }
 
 async function previewWorkspaceAi() {
-  const token = ++aiRevision;
-  const workspaceId = state.selectedId;
-  byId("workspace-ai-run").disabled = true;
   byId("workspace-ai-preview-meta").textContent = "Формирую payload локально…";
-  const response = await request({
-    type: "ai:preview", conversation: workspaceConversationWithDraft(), contextType: "workspace",
-    selectedFields: state.settings.ai.selectedFields, allowSiemTools: state.aiChat.allowSiemTools,
-  });
-  if (destroyed || token !== aiRevision || workspaceId !== state.selectedId) return;
+  const response = await aiConversation.preview();
+  if (!response) return;
   state.aiPreviewHash = response.preview.hash;
   byId("workspace-ai-preview-output").textContent = response.preview.serialized;
   const warnings = response.preview.warnings.length ? `\nПредупреждения:\n- ${response.preview.warnings.join("\n- ")}` : "";
@@ -363,26 +374,11 @@ async function previewWorkspaceAi() {
 }
 
 async function runWorkspaceAi() {
-  const workspaceId = state.selectedId;
-  if (!state.aiPreviewHash || sending.has(workspaceId)) return;
+  if (!aiConversation.reviewed || aiConversation.busy) return;
   if (!confirm(`Отправить в ${state.settings.ai.endpoint} ровно показанный payload?`)) return;
-  const outbound = workspaceConversationWithDraft();
-  let chat = normalizeAiChat(state.aiChat);
-  const message = { conversation: outbound, contextType: "workspace", selectedFields: state.settings.ai.selectedFields,
-    allowSiemTools: chat.allowSiemTools, previewHash: state.aiPreviewHash, confirmed: true };
-  sending.add(workspaceId); invalidateAiPreview(); renderAiWorkspace();
-  try {
-    const result = await requestAiCompletion(message);
-    chat = appendAiMessage(chat, outbound.at(-1));
-    const toolCalls = result.toolCalls ?? [];
-    chat = appendAiMessage(chat, { role: "assistant", content: result.content || `Запрошены дополнительные данные: ${toolCalls.map(workspaceToolDescription).join("; ")}`, toolCalls });
-    chat.draft = ""; chat.pendingAttachments = []; chat.pendingToolCalls = toolCalls;
-    await saveWorkspaceChat(workspaceId, chat);
-    if (!destroyed && state.selectedId === workspaceId) { state.aiChat = chat; invalidateAiPreview(); }
-  } finally {
-    sending.delete(workspaceId);
-    if (!destroyed) renderAiWorkspace();
-  }
+  const id = state.selectedId;
+  await aiConversation.send({ confirmed: true });
+  if (!destroyed && id === state.selectedId) { invalidateAiPreview(); renderAiWorkspace(); }
 }
 
 function renderEditor() {
@@ -551,6 +547,7 @@ const ready = initialize().catch((error) => {
 
 return { state, ready, refresh, selectWorkspace, destroy() {
   destroyed = true; revision += 1; clearTimeout(aiSaveTimer);
+  aiConversation.destroy();
   investigationCanvas?.destroy();
   for (const remove of listeners) remove();
 } };

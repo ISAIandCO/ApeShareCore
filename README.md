@@ -28,8 +28,8 @@
 | Процессы | `graph/process-model`, `graph/progressive`, `graph/workflow`, `graph/filters` | Извлечение полей, компиляция SQL/PDQL, API и авторизация |
 | Графы и расследования | `ui/process-graph`, `ui/workspace`, `ui/investigation-canvas`, шаблоны и CSS | Entry points, открытие вкладок, размещение кнопок в SIEM |
 | События и сущности | `events/describe`, `investigation/graph`, `events/compare` | Соответствие полей конкретной SIEM семантическим полям |
-| Хранение | `investigation/repository`, `storage/records` | Фабрика IndexedDB и имя базы |
-| AI | `ai/payload`, `ai/privacy`, `ai/chat`, `ai/transport`, `ui/chat-messages` | Выбор разрешённых полей, endpoints, секреты и доступные источники контекста |
+| Хранение | `investigation/repository`, `storage/records`, `graph/snapshots` | Фабрика IndexedDB и имя базы |
+| AI | `ai/conversation`, `ai/payload`, `ai/privacy`, `ai/chat`, `ai/transport`, `ui/chat-messages` | Выбор разрешённых полей, endpoints, секреты и доступные источники контекста |
 | IOC и настройки | `ioc/report-links`, `ioc/runner`, `filters/templates`, `settings/profiles` | Хранилище ключей, разрешения, диалекты запросов и defaults |
 
 Специализированные возможности вроде автодополнения PDQL, списков MaxPatrol и отображения его правил остаются в адаптере. Общий модуль не обязан использоваться всеми расширениями: пакетная IOC-проверка и корпоративные профили доступны как самостоятельные блоки.

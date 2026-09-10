@@ -52,7 +52,9 @@
     "./ai/privacy": "./src/ai/privacy.js",
     "./storage/records": "./src/storage/records.js",
     "./ui/download": "./src/ui/download.js",
-    "./templates/process-graph.html": "./templates/process-graph.html"
+    "./templates/process-graph.html": "./templates/process-graph.html",
+    "./graph/snapshots": "./src/graph/snapshots.js",
+    "./ai/conversation": "./src/ai/conversation.js"
   },
   "files": [
     "src/",

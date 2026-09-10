@@ -52,6 +52,10 @@ const TOOL_DEFINITIONS = Object.freeze({
       parameters: { type: "object", additionalProperties: false, properties: {} },
     } },
   ],
+  context: [{ type: "function", function: {
+    name: "get_additional_context", description: "Request additional read-only context from the operator. Nothing is fetched without confirmation.",
+    parameters: { type: "object", properties: { reason: { type: "string" } }, required: ["reason"], additionalProperties: false },
+  } }],
   workspace: [
     { type: "function", function: {
       name: "get_workspace_objects", description: "Request selected locally pinned investigation objects.",
@@ -228,6 +232,13 @@ export function normalizeAiToolCalls(responseMessage, contextType) {
     if (!args || typeof args !== "object" || Array.isArray(args)) return [];
     return [{ id: String(call.id || `tool-${index}`).slice(0, 200), name, arguments: args }];
   });
+}
+
+export function normalizeAiResponse(message, { contextType, allowSiemTools = false } = {}) {
+  const content = typeof message?.content === "string" ? message.content.slice(0, 100_000) : "";
+  const toolCalls = allowSiemTools ? normalizeAiToolCalls(message, contextType) : [];
+  if (!content.trim() && !toolCalls.length) throw new Error("Unexpected AI response schema");
+  return { content, toolCalls };
 }
 
 async function sha256(value) {
