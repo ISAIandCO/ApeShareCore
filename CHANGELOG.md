@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+
+- Preserve the source event when another event shares its PID. PID reuse or exec no longer silently replaces the selected source; GUID evidence can still share a node.
+
 ## 1.2.0
 
 - Все поверхности AI используют общий контроллер диалога: предпросмотр, подтверждение, защита от повторной отправки, сохранение ответа и обработка поздних результатов. Нормализация ответов и tool calls также общая.
