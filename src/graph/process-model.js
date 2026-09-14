@@ -64,8 +64,11 @@ function createsCycle(node, parent, nodes) {
 function representsSourceProcess(event, source) {
   if (event.recordId && event.recordId === source.recordId && event.host === source.host) return true;
   if (event.host !== source.host) return false;
-  const preferred = source.references.find(ref => ref.kind === "guid") ?? source.references[0];
-  return Boolean(preferred && event.references.some(ref => ref.kind === preferred.kind && ref.value === preferred.value));
+  if (event.identity.id === source.identity.id) return true;
+  // PID equality is not process identity: exec and PID reuse can yield distinct
+  // events on the same host. Only a stable GUID can represent another record.
+  const guid = source.references.find(ref => ref.kind === "guid");
+  return Boolean(guid && event.references.some(ref => ref.kind === "guid" && ref.value === guid.value));
 }
 export function buildProcessGraph(events, { maxNodes = 1000, maxDepth = 64, pidParentWindowMs = 24 * 60 * 60_000, sourceEvent = null } = {}) {
   if (!Array.isArray(events)) return { nodes: [], roots: [], truncated: false };

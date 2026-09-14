@@ -60,3 +60,32 @@ test("investigation range spans all event times using the shared ISO UTC contrac
     from: "2026-09-09T09:45:00.000Z", to: "2026-09-09T12:15:00.000Z",
   });
 });
+
+test("a different event with the same PID must not replace the source process", async () => {
+  const source = fact("who", "1713", "333153", Date.parse("2026-09-14T10:20:59Z"));
+  const other = fact("bash", "1713", "100", source.time - 60000);
+  const graph = buildProcessGraph([other], { sourceEvent: source });
+  assert.ok(graph.nodes.some(node => node.id === "who"));
+  const workflow = createProcessWorkflow({ normalize, searchPage: async () => ({ events: [other.raw], exhausted: true }) }, settings);
+  const result = await workflow.load(source.raw, "step");
+  assert.equal(result.sourceNodeId, "who");
+  assert.equal(result.graph.nodes.find(node => node.id === result.sourceNodeId).event.id, "who");
+});
+
+test("source preservation also applies when the graph reaches its node limit", () => {
+  const source = fact("source", "20", null, 2000);
+  const other = fact("other", "20", null, 1000);
+  const graph = buildProcessGraph([other], { maxNodes: 1, sourceEvent: source });
+  assert.deepEqual(graph.nodes.map(node => node.id), ["source"]);
+});
+
+test("stable GUID evidence still shares a single process node", () => {
+  const source = fact("source", "20", null, 2000);
+  const other = fact("other", "20", null, 1000);
+  for (const item of [source, other]) {
+    item.identity = { id: "guid:process", kind: "guid", value: "process" };
+    item.references.unshift({ kind: "guid", value: "process" });
+  }
+  const graph = buildProcessGraph([other], { sourceEvent: source });
+  assert.deepEqual(graph.nodes.map(node => node.id), ["guid:process"]);
+});
