@@ -96,4 +96,6 @@ HTML/CSS страниц находятся в `templates/*` и `styles/*`. Сб�
 
 `normalizeUserFilters(input, normalize)` validates atomically through the consumer's dialect normalizer. Import/export use a versioned `ape-useful-filters` envelope with a consumer-supplied dialect; legacy arrays are accepted. Import adds records and rejects duplicate IDs without replacing existing data.
 
-`createFilterEditor({root, builtins, normalize, dialect, onStatus})` renders the two groups, built-in enable switches and copy actions, user JSON editor, file import/export. `set(settings)` loads a draft, `read()` validates and returns `{userFilters, disabledBuiltinFilterIds}`. The host owns saving, permission and managed-policy handling. No browser globals are used during module import.
+`createFilterEditor({root, builtins, normalize, dialect, onStatus})` renders the two groups, built-in enable switches and copy actions, user filter forms, create/delete actions and JSON file import/export. `set(settings)` loads a draft, `read()` validates and returns `{userFilters, disabledBuiltinFilterIds}`. The host owns saving, permission and managed-policy handling. No browser globals are used during module import.
+
+The editor accepts `queryModes`, `defaultMode`, `queryHint` and optional `prepareTemplate(filter)` for a query preview. Fields cover name, description, mode, time range, platforms, enabled state, template and an advanced ID. Templates retain their formatting. Dialect validation and compilation remain consumer-owned.

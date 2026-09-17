@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+- Shared form-based filter editor with create, copy, delete, validation and optional query preview.
+- Preserve multiline templates; JSON remains available for import/export.
+
 ## 1.4.0
 
 - Shared built-in/user filter catalog migration, composition, validation, JSON import/export and editor.
