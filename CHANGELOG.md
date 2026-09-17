@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0
+
+- Shared built-in/user filter catalog migration, composition, validation, JSON import/export and editor.
+
 ## 1.3.1
 
 - Preserve the source event when another event shares its PID. PID reuse or exec no longer silently replaces the selected source; GUID evidence can still share a node.

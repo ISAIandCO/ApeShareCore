@@ -89,3 +89,11 @@ HTML/CSS страниц находятся в `templates/*` и `styles/*`. Сб�
 
 `normalizeFilterPlatforms(platforms)` normalizes optional `windows`/`unix` restrictions. An empty array means a universal filter. `filterSupportsPlatform(filter, platform)` permits universal filters and matching restricted filters; unknown systems do not enable restricted filters. Adapters preserve this metadata when saving custom filters and supply their own field aliases. Existing query rendering remains unchanged.
 
+
+## filters/catalog and ui/filter-editor (1.4)
+
+`splitLegacyFilters(legacy, builtins)` separates user changes and disabled built-in IDs. `composeFilterCatalog(builtins, userFilters, disabledBuiltinFilterIds)` returns a runtime view with `source: builtin|user`; user IDs are namespaced as `user:<id>` to prevent collisions. Persist the original user array, not the composed view. Pure functions do not access storage.
+
+`normalizeUserFilters(input, normalize)` validates atomically through the consumer's dialect normalizer. Import/export use a versioned `ape-useful-filters` envelope with a consumer-supplied dialect; legacy arrays are accepted. Import adds records and rejects duplicate IDs without replacing existing data.
+
+`createFilterEditor({root, builtins, normalize, dialect, onStatus})` renders the two groups, built-in enable switches and copy actions, user JSON editor, file import/export. `set(settings)` loads a draft, `read()` validates and returns `{userFilters, disabledBuiltinFilterIds}`. The host owns saving, permission and managed-policy handling. No browser globals are used during module import.
