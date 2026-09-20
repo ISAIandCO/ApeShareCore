@@ -1,3 +1,4 @@
+import { OPERATION_CATEGORIES, createOperationStore, groupOperations, operationContext } from '../graph/operations.js';
 import { applyRepulsion, DEFAULT_FORCE_SETTINGS, forceIterationLimit, normalizeForceSettings, seedComponentLayout, stabilizeForceNode } from "../graph/force-layout.js";
 import { ProcessSpatialIndex } from "../graph/spatial-index.js";
 import { compileProcessTextFilter, filterProcessNodes, processFilterError } from "../graph/filters.js";
@@ -64,18 +65,118 @@ const state = {
   layoutBoundary: 1000,
 };
 
+const operations = createOperationStore(input => adapter.searchOperations(input));
+function processContext(node) {
+  const range = state.response.queryMetadata;
+  const peers = state.nodes.filter(item => !item.operationKind).map(item => adapter.processIdentity(item, state.response));
+  return operationContext({ ...adapter.processIdentity(node, state.response), nodeId: node.id },
+    { from: Date.parse(range.timeFrom), to: Date.parse(range.timeTo) }, peers);
+}
+function operationButton(label, action, disabled = false) {
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.disabled = disabled;
+  button.addEventListener('click', action); return button;
+}
+function syncOperationNodes() {
+  const previous = state.nodeMap;
+  state.nodes = state.nodes.filter(node => !node.operationKind);
+  state.edges = state.edges.filter(edge => !edge.operation);
+  const processIds = new Set(state.nodes.map(node => node.id));
+  const add = (id, label, kind, parentId, entry, facts, index) => {
+    const parent = state.nodes.find(node => node.id === parentId);
+    const old = previous.get(id);
+    const node = { id, label, operationKind: kind, parentId, entry, facts, event: facts?.[0]?.raw,
+      radius: kind === 'category' ? 22 : 14, depth: (parent.depth || 0) + 1, connectionCount: facts?.length || 1,
+      time: facts?.[0]?.time ?? parent.time, selected: false, filterValues: parent.filterValues,
+      searchText: label.toLowerCase(), eventText: '', details: [],
+      x: old?.x ?? parent.x + 140, y: old?.y ?? parent.y + index * 65, vx: 0, vy: 0,
+      anchorX: old?.anchorX, anchorY: old?.anchorY };
+    state.nodes.push(node); state.edges.push({ sourceId: parentId, targetId: id, operation: true });
+    return node;
+  };
+  let categoryIndex = 0;
+  for (const entry of operations.entries.values()) {
+    if (!processIds.has(entry.process.nodeId)) continue;
+    const id = `operation:${entry.key}`;
+    add(id, `${OPERATION_CATEGORIES[entry.category]} · ${entry.facts.length}`, 'category', entry.process.nodeId, entry, null, categoryIndex++);
+    if (!entry.collapsed) groupOperations(entry.facts).forEach((group, index) => add(`${id}:${group.key}`, `${group.label} · ${group.events.length}`, 'object', id, entry, group.events, index));
+  }
+  state.nodeMap = new Map(state.nodes.map(node => [node.id, node]));
+  state.alpha = 0; state.autoFitPending = false;
+  updateVisibleNodes(); scheduleDraw();
+}
+function operationStatus(entry) {
+  if (!entry) return 'Не загружено';
+  if (entry.status === 'loading') return 'Загрузка…';
+  if (['error', 'unsupported'].includes(entry.status)) return entry.error;
+  return `${entry.facts.length} событий в группах · прочитано ${entry.loaded}${entry.rejected ? ` · не сопоставлено ${entry.rejected}` : ''}${entry.more ? ' · возможно продолжение' : ' · выборка загружена'}${entry.warning ? ' · ' + entry.warning : ''}`;
+}
+function appendOperationControls(container, node) {
+  let process;
+  try { process = processContext(node); } catch (error) { container.append(tooltipRow('Операции', error.message)); return; }
+  for (const [category, title] of Object.entries(OPERATION_CATEGORIES)) {
+    const entry = operations.get(process, category);
+    const supported = state.response.operationProfiles?.some(profile => profile.enabled && profile.category === category && profile.platform === process.platform);
+    const row = document.createElement('div');
+    row.append(tooltipRow(title, supported ? operationStatus(entry) : 'Не настроен профиль для этой ОС / источника'));
+    row.append(operationButton(entry ? 'Показать ещё 25 / повторить' : 'Загрузить до 25', async () => {
+      const pending = operations.load(process, category);
+      showTooltip(node, 20, 60, { pinned: true });
+      const result = await pending;
+      if (!result || destroyed || !state.nodeMap.has(node.id)) return;
+      syncOperationNodes(); showTooltip(state.nodeMap.get(node.id), 20, 60, { pinned: true });
+    }, !supported || state.stale || Boolean(state.activeRequestId) || entry?.status === 'loading' || entry?.more === false));
+    if (entry && (entry.process.from !== process.from || entry.process.to !== process.to)) {
+      row.append(tooltipRow('Диапазон категории', 'Граф расширен; продолжение читает прежний диапазон.'));
+      row.append(operationButton('Искать в текущем диапазоне', async () => {
+        operations.reset(process, category);
+        const pending = operations.load(process, category);
+        syncOperationNodes(); showTooltip(node, 20, 60, { pinned: true });
+        if (!await pending || destroyed) return;
+        syncOperationNodes(); showTooltip(node, 20, 60, { pinned: true });
+      }, state.stale || Boolean(state.activeRequestId)));
+    }
+    if (entry) row.append(operationButton(entry.collapsed ? 'Раскрыть' : 'Свернуть', () => { entry.collapsed = !entry.collapsed; syncOperationNodes(); showTooltip(node, 20, 60, { pinned: true }); }));
+    container.append(row);
+  }
+}
+function showOperationTooltip(node, clientX, clientY, pinned) {
+  state.tooltipPinned = pinned; tooltip.classList.toggle('pinned', pinned); tooltip.replaceChildren();
+  const heading = document.createElement('h2'); heading.textContent = node.label;
+  tooltip.append(heading, tooltipRow('Выборка', operationStatus(node.entry)));
+  tooltip.append(tooltipRow('Период', `${new Date(node.entry.process.from).toLocaleString()} — ${new Date(node.entry.process.to).toLocaleString()}`));
+  if (pinned && node.operationKind === 'category') {
+    tooltip.append(operationButton(node.entry.collapsed ? 'Раскрыть' : 'Свернуть', () => { node.entry.collapsed = !node.entry.collapsed; syncOperationNodes(); showOperationTooltip(node, clientX, clientY, true); }));
+    const source = state.nodeMap.get(node.entry.process.nodeId);
+    tooltip.append(operationButton('Категории и подгрузка', () => showTooltip(source, clientX, clientY, { pinned: true })));
+  }
+  if (pinned && node.facts?.length) {
+    const select = document.createElement('select'); select.setAttribute('aria-label', 'Исходное событие операции');
+    for (const [index, fact] of node.facts.entries()) {
+      const option = document.createElement('option'); option.value = String(index); option.textContent = `${new Date(fact.time).toLocaleString()} · ${fact.operation} · ${fact.id}`; select.append(option);
+    }
+    const details = document.createElement('pre'); details.style.maxHeight = '220px'; details.style.overflow = 'auto';
+    const refresh = () => { details.textContent = JSON.stringify(node.facts[Number(select.value)].raw, null, 2); }; refresh();
+    select.addEventListener('change', refresh);
+    tooltip.append(select, details, operationButton('Открыть исходное событие', () => adapter.open({ event: node.facts[Number(select.value)].raw, operationFact: node.facts[Number(select.value)] }, state).catch(error => setStatus(error.message, true))));
+  }
+  if (pinned) tooltip.append(operationButton('Закрыть карточку', closeTooltip));
+  tooltip.hidden = false; tooltip.style.left = `${Math.max(10, Math.min(clientX + 16, window.innerWidth - tooltip.offsetWidth - 10))}px`;
+  tooltip.style.top = `${Math.max(10, Math.min(clientY + 16, window.innerHeight - tooltip.offsetHeight - 10))}px`;
+}
+
 function usesForceLayout() { return state.layout !== "timeline"; }
 
 function visibleNodes() { return state.nodes.filter((node) => state.visibleNodeIds.has(node.id)); }
 
 function updateVisibleNodes() {
   const selectedId = state.nodes.find((node) => node.selected)?.id ?? null;
-  state.visibleNodeIds = filterProcessNodes(state.nodes, state.filters, selectedId);
+  state.visibleNodeIds = filterProcessNodes(state.nodes.filter(node => !node.operationKind), state.filters, selectedId);
+  for (const node of state.nodes.filter(node => node.operationKind)) if (state.visibleNodeIds.has(node.parentId)) state.visibleNodeIds.add(node.id);
   state.spatialDirty = true;
   const invalid = processFilterError(state.filters);
   byId("filter-count").textContent = invalid
     ? `Некорректное регулярное выражение: ${invalid.message}`
-    : `Показано ${state.visibleNodeIds.size} из ${state.nodes.length} процессов`;
+    : `Показано ${state.visibleNodeIds.size} из ${state.nodes.length} узлов`;
   scheduleDraw();
 }
 
@@ -282,7 +383,16 @@ function drawNode(node, colors) {
   context.strokeStyle = colors.stroke;
   context.lineWidth = active ? 2.8 : 1.2;
   context.beginPath();
-  context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  if (node.operationKind) {
+    context.fillStyle = node.operationKind === 'category' ? '#bc9bd7' : '#a9c99a';
+    const sides = node.operationKind === 'category' ? 6 : 4;
+    for (let index = 0; index < sides; index++) {
+      const angle = index * Math.PI * 2 / sides;
+      const x = point.x + radius * Math.cos(angle), y = point.y + radius * Math.sin(angle);
+      if (index) context.lineTo(x, y); else context.moveTo(x, y);
+    }
+    context.closePath();
+  } else context.arc(point.x, point.y, radius, 0, Math.PI * 2);
   context.fill();
   if (radius > 3) context.stroke();
   if (node.selected) {
@@ -370,6 +480,7 @@ function showTooltip(node, clientX, clientY, { pinned = false } = {}) {
     closeTooltip();
     return;
   }
+  if (node.operationKind) { showOperationTooltip(node, clientX, clientY, pinned); return; }
   state.tooltipPinned = pinned;
   tooltip.classList.toggle("pinned", pinned);
   tooltip.replaceChildren();
@@ -402,6 +513,7 @@ function showTooltip(node, clientX, clientY, { pinned = false } = {}) {
     close.addEventListener("click", closeTooltip);
     actions.append(attach, close);
     tooltip.append(actions);
+    if (state.layout === "step" && adapter.searchOperations) appendOperationControls(tooltip, node);
   }
   tooltip.hidden = false;
   const margin = 14;
@@ -469,7 +581,7 @@ listen(canvas, "pointerup", (event) => {
   state.pan = null;
   state.pointerDown = null;
   if (usesForceLayout()) startSimulation();
-  if (shouldOpen) openNodeEvent(node).catch((error) => setStatus(error.message, true));
+  if (shouldOpen) { if (node.operationKind) showOperationTooltip(node, event.clientX, event.clientY, true); else openNodeEvent(node).catch((error) => setStatus(error.message, true)); }
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
 });
 
@@ -608,6 +720,7 @@ function applyGraphResponse(response, { stale = false, snapshotCreatedAt = null 
   }
   scheduleDraw();
   fitGraph();
+  if (operations.entries.size) syncOperationNodes();
 }
 
 function markGraphStale(message = "Исходная вкладка SIEM закрыта; текущий локальный снимок продолжает работать") {
@@ -645,6 +758,7 @@ async function runOperation(operation) {
   if (state.activeRequestId) return false;
   if (!adapter.isAvailable() || state.stale) throw new Error("Сначала подключите доступную SIEM");
   const requestId = crypto.randomUUID();
+  operations.invalidate();
   state.activeRequestId = requestId;
   updateExpansionUi();
   byId("loading").hidden = false;
@@ -718,6 +832,7 @@ async function loadSnapshot() {
 }
 
 async function reloadGraph() {
+  operations.clear();
   try {
     return await runOperation(requestId => adapter.load({ requestId, mode: state.layout === "step" ? "step" : "broad", nodeLimit: state.nodeLimit }));
   } catch (error) {
@@ -839,6 +954,7 @@ initializeGraph().catch((error) => {
 
 return { state, reload: reloadGraph, applyGraphResponse, destroy() {
   destroyed = true;
+  operations.clear();
   if (state.activeRequestId) Promise.resolve(adapter.cancel(state.activeRequestId)).catch(() => {});
   state.activeRequestId = null;
   if (state.frame) window.cancelAnimationFrame(state.frame);

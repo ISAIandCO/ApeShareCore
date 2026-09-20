@@ -1,6 +1,6 @@
 {
   "name": "@isaiandco/ape-share-core",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Autonomous modules for the Ape family of SIEM extensions",
   "type": "module",
   "license": "Apache-2.0",
@@ -57,7 +57,11 @@
     "./ai/conversation": "./src/ai/conversation.js",
     "./filters/platform": "./src/filters/platform.js",
     "./filters/catalog": "./src/filters/catalog.js",
-    "./ui/filter-editor": "./src/ui/filter-editor.js"
+    "./ui/filter-editor": "./src/ui/filter-editor.js",
+    "./graph/operations": "./src/graph/operations.js",
+    "./graph/operation-search": "./src/graph/operation-search.js",
+    "./settings/operation-profiles": "./src/settings/operation-profiles.js",
+    "./ui/operation-profile-editor": "./src/ui/operation-profile-editor.js"
   },
   "files": [
     "src/",

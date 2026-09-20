@@ -84,3 +84,6 @@ canvas.node-hover { cursor: pointer; }
   #legend span:last-child { display: none; }
   .filter-grid { grid-template-columns: 1fr; }
 }
+
+#process-tooltip { max-height: calc(100vh - 24px); overflow: auto; }
+#process-tooltip select { max-width: 100%; }
