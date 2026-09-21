@@ -61,7 +61,8 @@
     "./graph/operations": "./src/graph/operations.js",
     "./graph/operation-search": "./src/graph/operation-search.js",
     "./settings/operation-profiles": "./src/settings/operation-profiles.js",
-    "./ui/operation-profile-editor": "./src/ui/operation-profile-editor.js"
+    "./ui/operation-profile-editor": "./src/ui/operation-profile-editor.js",
+    "./settings/operation-recipes": "./src/settings/operation-recipes.js"
   },
   "files": [
     "src/",

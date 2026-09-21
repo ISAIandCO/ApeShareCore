@@ -70,9 +70,7 @@ test('multiple source profiles share a 25-event category budget and reject chang
     read: (event, field) => event[field], parseTime: Number,
     fetch: async input => { calls.push(input); return []; } };
   const first = await searchOperationPage(args);
-  assert.equal(calls.length, 1); assert.equal(calls[0].limit, 25); assert.ok(first.more);
-  const second = await searchOperationPage({ ...args, cursor: first.cursor });
-  assert.equal(calls.length, 2); assert.equal(second.more, false); assert.match(calls[1].where, /otherPid=42/);
+  assert.equal(calls.length, 2); assert.equal(calls[0].limit, 25); assert.equal(first.more, false); assert.match(calls[1].where, /otherPid=42/);
   await assert.rejects(searchOperationPage({ ...args, profiles: [{ ...profile, pid: 'changed' }], cursor: first.cursor }), /изменились/);
 });
 test('range expansion does not duplicate categories and explicit category reset ignores an older request', async () => {
@@ -89,4 +87,36 @@ test('range expansion does not duplicate categories and explicit category reset 
   finish({ scanned: 1, facts: [fact('new')], more: false, cursor: 1 });
   assert.equal((await current).facts[0].id, 'new');
   assert.equal(store.entries.size, 1); assert.equal(calls[1].process.to, 2000);
+});
+
+test('source profiles fill one page with a shared raw budget and resume at the correct source offset', async () => {
+  const calls = [];
+  const args = { process, category: 'files', profiles: [profile, { ...profile, id: 'second' }],
+    dialect: { equal: () => '', in: () => '', pid: () => '', and: () => '', factual: '' },
+    read: (event, field) => event[field], parseTime: Number,
+    fetch: async input => {
+      calls.push([input.profile.id, input.offset, input.limit]);
+      return Array.from({ length: input.profile.id === 'test' ? 7 : input.offset ? 2 : input.limit }, (_, i) => ({ source: 'test', event: '11', host: process.host, pid: 42, file: '/example', id: `${input.profile.id}-${input.offset+i}`, time: 150 }));
+    } };
+  const first = await searchOperationPage(args);
+  assert.equal(first.scanned, 25); assert.equal(first.facts.length, 25);
+  assert.deepEqual(calls, [['test', 0, 25], ['second', 0, 18]]);
+  const second = await searchOperationPage({ ...args, cursor: first.cursor });
+  assert.deepEqual(calls[2], ['second', 18, 25]); assert.equal(second.more, false);
+  assert.equal(new Set([...first.facts, ...second.facts].map(f => f.id)).size, 27);
+});
+
+test('GUID-selected pages never downgrade a missing GUID to PID matching', async () => {
+  const result = await searchOperationPage({ process: { ...process, guid: 'abc' }, category: 'files', profiles: [{ ...profile, guid: 'guid' }],
+    dialect: { equal: () => '', in: () => '', guid: () => '', and: () => '', factual: '' },
+    read: (event, field) => event[field], parseTime: Number,
+    fetch: async () => [{ source: 'test', event: '11', host: process.host, pid: 42, file: '/example', id: '1', time: 150 }] });
+  assert.equal(result.scanned, 1); assert.deepEqual(result.facts, []);
+});
+
+test('text PID predicates enumerate decimal and padded Windows hex representations', async () => {
+  const { pidTextValues } = await import('../src/graph/operation-search.js');
+  const values = pidTextValues('42');
+  for (const value of ['42', '00042', '0x2a', '0X002A', '0x000000000000002a']) assert.ok(values.includes(value), value);
+  assert.equal(new Set(values).size, values.length);
 });
