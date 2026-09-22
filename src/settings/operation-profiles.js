@@ -22,11 +22,11 @@ export function normalizeOperationProfiles(profiles) {
     const result = { id: profile.id, category: profile.category, platform: profile.platform, enabled: Boolean(profile.enabled), pidFormat: profile.pidFormat || 'auto', selectorRequired: Boolean(profile.selectorRequired) };
     for (const [key, label] of OPERATION_FIELDS) {
       const value = String(profile[key] ?? '').trim();
-      if ((result.enabled && required.has(key) && !value) || value.length > 500) throw new Error(`${profile.name}: проверьте «${label}»`);
+      if ((result.enabled && required.has(key) && !value) || value.length > 500) throw new Error(`${profile.name || profile.id || 'Новый профиль'}: проверьте «${label}»`);
       if (fields.has(key) && value && !/^[A-Za-z_][\w.]*$/.test(value)) throw new Error(`${label}: недопустимое имя поля`);
       result[key] = value;
     }
-    if (result.enabled && result.selectorRequired && !result.operationField) throw new Error(`${result.name}: укажите поле типа объекта / имени syscall`);
+    if (result.enabled && result.selectorRequired && !result.operationField) throw new Error(`${result.name || result.id}: укажите поле типа объекта / имени syscall`);
     if ((result.enabled || result.operationField) && Boolean(result.operationField) !== Boolean(result.operationValues)) throw new Error('Задайте и поле, и значения операции');
     if (result.enabled && ['sourceValues', 'eventValues', ...(result.operationField ? ['operationValues'] : [])].some(key => !profileValues(result[key]).length)) throw new Error('Список признаков события пуст');
     if (result.category === 'registry' && result.platform !== 'windows') throw new Error('Реестр доступен только в Windows');

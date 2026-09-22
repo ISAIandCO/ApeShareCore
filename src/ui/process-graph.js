@@ -111,13 +111,15 @@ function operationStatus(entry) {
   return `${entry.facts.length} событий в группах · прочитано ${entry.loaded}${entry.rejected ? ` · не сопоставлено ${entry.rejected}` : ''}${entry.more ? ' · возможно продолжение' : ' · выборка загружена'}${entry.warning ? ' · ' + entry.warning : ''}`;
 }
 function appendOperationControls(container, node) {
+  if (!state.response.operationProfiles?.some(profile => profile.enabled)) return;
   let process;
   try { process = processContext(node); } catch (error) { container.append(tooltipRow('Операции', error.message)); return; }
   for (const [category, title] of Object.entries(OPERATION_CATEGORIES)) {
     const entry = operations.get(process, category);
     const supported = state.response.operationProfiles?.some(profile => profile.enabled && profile.category === category && profile.platform === process.platform);
+    if (!supported) continue;
     const row = document.createElement('div');
-    row.append(tooltipRow(title, supported ? operationStatus(entry) : 'Не настроен профиль для этой ОС / источника'));
+    row.append(tooltipRow(title, operationStatus(entry)));
     row.append(operationButton(entry ? 'Показать ещё 25 / повторить' : 'Загрузить до 25', async () => {
       const pending = operations.load(process, category);
       showTooltip(node, 20, 60, { pinned: true });
