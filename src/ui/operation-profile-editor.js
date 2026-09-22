@@ -27,6 +27,21 @@ export function createOperationProfileEditor({ root, defaults, save, status = ()
     if (!profile.pidFormat) inputs.pidFormat.value = 'auto';
     for (const [key, title] of OPERATION_FIELDS) control(key, title);
     const item = { card, read: () => ({ id: profile.id, selectorRequired: profile.selectorRequired, enabled: enabled.checked, ...Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, input.value])) }) };
+    const readiness = doc.createElement('p'); readiness.dataset.operationReadiness = 'true';
+    card.append(readiness);
+    function updateReadiness() {
+      let error = '';
+      try { normalizeOperationProfiles([{ ...item.read(), enabled: true }]); } catch (failure) { error = failure.message; }
+      // An incomplete disabled template is a draft, not an invalid saved profile.
+      // Keep an already enabled invalid profile editable, so validation never
+      // silently discards the user's enabled flag or changes their query.
+      enabled.disabled = Boolean(error) && !enabled.checked;
+      readiness.textContent = error ? `Перед включением заполните профиль: ${error}` : '';
+      summary.textContent = (inputs.name.value || 'Новый профиль') + (error ? ' — требуется настройка' : '');
+    }
+    for (const input of Object.values(inputs)) { input.addEventListener('input', updateReadiness); input.addEventListener('change', updateReadiness); }
+    enabled.addEventListener('change', updateReadiness);
+    updateReadiness();
     card.append(button('Удалить профиль', () => { cards = cards.filter(other => other !== item); card.remove(); }));
     cards.push(item); list.append(card);
   }
